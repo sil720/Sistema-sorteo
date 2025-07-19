@@ -1,0 +1,315 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>?? Sorteo en Vivo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      background: black;
+      color: lime;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    nav button {
+      background: lime;
+      color: black;
+      padding: 10px 16px;
+      margin: 5px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    section { display: none; }
+    section.active { display: block; }
+
+    .grilla {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+      gap: 6px;
+      max-width: 700px;
+      margin: 20px auto;
+    }
+    .numero {
+      background: #222;
+      padding: 10px;
+      border: 1px solid lime;
+      border-radius: 5px;
+    }
+    .premio img {
+      max-width: 150px;
+      display: block;
+      margin: 5px auto;
+      border-radius: 4px;
+    }
+    .compartir a {
+      background: lime;
+      color: black;
+      padding: 10px 20px;
+      margin: 6px;
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: bold;
+      display: inline-block;
+    }
+    .qr img { margin-top: 10px; }
+    #estadoCuentaRegresiva, #estadoSorteo {
+      background: #fff8dc;
+      color: #222;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-weight: bold;
+      border: 1px solid #e0c97d;
+      font-size: 1.1em;
+    }
+    .precio-info {
+      margin-top: 10px;
+      background: #111;
+      color: lime;
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 1.1em;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    @media (max-width: 600px) {
+      .grilla {
+        grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+      }
+    }
+  </style>
+
+  <!-- ?? Sonidos por evento -->
+  <audio id="sonidoBolilla" src="/sounds/bolilla.wav"></audio>
+  <audio id="sonidoGanador" src="/sounds/ganador.mp3"></audio>
+  <audio id="sonidoFase" src="/sounds/fase.wav"></audio>
+</head>
+<body>
+  <h1>?? Sorteo en Vivo</h1>
+
+  <nav>
+    <button onclick="mostrarSeccion('grilla')">?? Ver sorteo</button>
+    <button onclick="mostrarSeccion('comprar')">?? Comprar número</button>
+    <button onclick="mostrarSeccion('envivo')">?? Ver sorteo en vivo</button>
+  </nav>
+
+  <!-- ?? Sección grilla -->
+  <section id="grilla" class="active">
+    <div id="estadoSorteo">? Cargando estado...</div>
+    <div class="precio-info">
+      <p><strong>?? Precio por número:</strong> $<span id="precioUnitario">—</span></p>
+      <p><strong>?? Precio por 2 números:</strong> $<span id="precioDoble">—</span></p>
+    </div>
+    <h2>?? Números Disponibles</h2>
+    <div id="numerosDisponibles" class="grilla"></div>
+
+    <h2>?? Premios a sortear</h2>
+    <div id="premiosGrilla"></div>
+
+    <div class="compartir">
+      <a id="btnWhatsapp" target="_blank">?? WhatsApp</a>
+      <a id="btnTelegram" target="_blank">?? Telegram</a>
+      <a id="btnFacebook" target="_blank">?? Facebook</a>
+    </div>
+
+    <div class="qr">
+      <h3>?? Escaneá para acceder:</h3>
+      <img id="qrCode" src="" width="180">
+    </div>
+  </section>
+  <!-- ?? Sección compra -->
+  <section id="comprar">
+    <div id="pasoSeleccionCompra">
+      <h2>??? ¿Qué querés comprar?</h2>
+      <p>?? Comprás 2 números y accedés a descuento.</p>
+      <button onclick="iniciarCompra(1)">1 número</button>
+      <button onclick="iniciarCompra(2)">2 números con descuento</button>
+    </div>
+    <div id="pasoUnoNumero" style="display:none;">
+      <h3>?? Elegí tu número</h3>
+      <select id="numero1Seleccion"></select><br>
+      <button onclick="continuarASegundoNumero()">Siguiente</button>
+    </div>
+    <div id="pasoDosNumero" style="display:none;">
+      <h3>?? Elegí el segundo</h3>
+      <select id="numero2Seleccion"></select><br>
+      <button onclick="finalizarCompra()">Finalizar compra</button>
+    </div>
+    <div id="mensajeCompra" class="precio-info" style="display:none;"></div>
+  </section>
+
+  <!-- ?? Sección en vivo -->
+  <section id="envivo">
+    <div id="estadoCuentaRegresiva"></div>
+    <div id="premiosEnvivo"></div>
+    <div id="resultado"></div>
+    <div id="youtubeLive" style="display:none; margin-top:20px;">
+      <h3>?? Transmisión en vivo</h3>
+      <iframe width="560" height="315" src="https://www.youtube.com/embed/ABC123XYZ?autoplay=1"
+        title="Sorteo en vivo" frameborder="0" allow="autoplay; encrypted-media;" allowfullscreen></iframe>
+      <br>
+      <a href="https://www.youtube.com/watch?v=ABC123XYZ" target="_blank" style="color: lime;">?? Ver en YouTube</a>
+    </div>
+  </section>
+<script>
+const sorteo_id = 1;
+let precioUnitario = 0;
+let precioDoble = null;
+let disponibles = [];
+let tipoCompra = 1;
+
+const audio = {
+  bolilla: document.getElementById("sonidoBolilla"),
+  ganador: document.getElementById("sonidoGanador"),
+  fase: document.getElementById("sonidoFase")
+};
+
+function mostrarSeccion(id) {
+  document.querySelectorAll("section").forEach(sec => sec.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+async function cargarEstado() {
+  const res = await fetch("/api/sorteos/estado/" + sorteo_id);
+  const data = await res.json();
+  disponibles = data.disponibles;
+  precioUnitario = parseFloat(data.precio_unitario || 0);
+  precioDoble = data.precio_doble !== null ? parseFloat(data.precio_doble) : null;
+
+  document.getElementById("precioUnitario").innerText = precioUnitario.toFixed(2);
+  document.getElementById("precioDoble").innerText = precioDoble !== null ? precioDoble.toFixed(2) : "—";
+
+  document.getElementById("numerosDisponibles").innerHTML =
+    disponibles.map(n => `<div class="numero">${n}</div>`).join("");
+
+  document.getElementById("numero1Seleccion").innerHTML =
+    disponibles.map(n => `<option value="${n}">${n}</option>`).join("");
+
+  document.getElementById("numero2Seleccion").innerHTML =
+    disponibles.map(n => `<option value="${n}">${n}</option>`).join("");
+
+  const premiosHTML = data.premios.map(p =>
+    `<div class="premio"><strong>${p.nombre}</strong><br><img src="${p.imagen_url || ''}"></div>`
+  ).join("");
+  document.getElementById("premiosGrilla").innerHTML = premiosHTML;
+  document.getElementById("premiosEnvivo").innerHTML = premiosHTML;
+
+  const ahora = new Date();
+  const fechaSorteo = new Date(data.fecha_hora);
+
+  if (ahora < fechaSorteo) {
+    iniciarCuentaRegresiva(fechaSorteo);
+  } else {
+    document.getElementById("estadoCuentaRegresiva").innerHTML =
+      `?? Sorteo en vivo — <strong>${fechaSorteo.toLocaleString()}</strong>`;
+    document.getElementById("youtubeLive").style.display = "block";
+  }
+
+  const texto = encodeURIComponent("?? Participá del sorteo en vivo:\n" + window.location.href);
+  document.getElementById("btnWhatsapp").href = "https://wa.me/?text=" + texto;
+  document.getElementById("btnTelegram").href = "https://t.me/share/url?url=" + encodeURIComponent(window.location.href) + "&text=" + texto;
+  document.getElementById("btnFacebook").href = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(window.location.href);
+  document.getElementById("qrCode").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(window.location.href);
+}
+
+function iniciarCuentaRegresiva(fechaObjetivo) {
+  function actualizar() {
+    const ahora = new Date();
+    const diff = fechaObjetivo - ahora;
+    if (diff <= 0) {
+      document.getElementById("estadoCuentaRegresiva").innerHTML =
+        `?? Sorteo en vivo — <strong>${fechaObjetivo.toLocaleString()}</strong>`;
+      document.getElementById("youtubeLive").style.display = "block";
+      clearInterval(intervalo);
+      return;
+    }
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById("estadoCuentaRegresiva").innerHTML =
+      `? Sorteo en <strong>${h}h ${m}m ${s}s</strong> — ${fechaObjetivo.toLocaleString()}`;
+  }
+  actualizar();
+  const intervalo = setInterval(actualizar, 1000);
+}
+
+function iniciarCompra(tipo) {
+  tipoCompra = tipo;
+  document.getElementById("pasoSeleccionCompra").style.display = "none";
+  document.getElementById("mensajeCompra").style.display = "block";
+  document.getElementById("pasoUnoNumero").style.display = "block";
+
+  const ahorro = precioUnitario * 2 - precioDoble;
+  const mensaje = tipo === 2
+    ? `?? Comprás 2 números por $${precioDoble.toFixed(2)} (ahorrás $${ahorro.toFixed(2)})`
+    : `?? Precio por número: $${precioUnitario.toFixed(2)}`;
+  document.getElementById("mensajeCompra").innerText = mensaje;
+}
+
+function continuarASegundoNumero() {
+  const seleccionado = parseInt(document.getElementById("numero1Seleccion").value);
+  const segundaLista = disponibles.filter(n => n !== seleccionado);
+  document.getElementById("numero2Seleccion").innerHTML =
+    segundaLista.map(n => `<option value="${n}">${n}</option>`).join("");
+  if (tipoCompra === 2) {
+    document.getElementById("pasoUnoNumero").style.display = "none";
+    document.getElementById("pasoDosNumero").style.display = "block";
+  } else {
+    finalizarCompra();
+  }
+}
+
+async function finalizarCompra() {
+  const numero1 = parseInt(document.getElementById("numero1Seleccion").value);
+  const numero2 = tipoCompra === 2 ? parseInt(document.getElementById("numero2Seleccion").value) : null;
+  const numeros = tipoCompra === 2 ? [numero1, numero2] : [numero1];
+
+  for (const numero of numeros) {
+    const res = await fetch(`/api/pago/${numero}?sorteo_id=${sorteo_id}`);
+    const link = await res.json();
+    if (link.init_point) {
+      window.open(link.init_point, "_blank");
+    }
+  }
+
+  mostrarSeccion("grilla");
+  document.getElementById("pasoSeleccionCompra").style.display = "block";
+  document.getElementById("mensajeCompra").style.display = "none";
+  document.getElementById("pasoUnoNumero").style.display = "none";
+  document.getElementById("pasoDosNumero").style.display = "none";
+}
+
+// ?? Conexión SSE
+const source = new EventSource("/api/sorteos/stream");
+source.onmessage = e => {
+  const data = JSON.parse(e.data);
+  if (data.tipo === "venta") {
+    cargarEstado();
+  } else if (data.tipo === "ganador") {
+    audio.ganador.play();
+    mostrarSeccion("envivo");
+    document.getElementById("estadoCuentaRegresiva").innerText = "?? ¡Sorteo en vivo!";
+    document.getElementById("resultado").innerHTML = `
+      <h2>?? Ganador: ${data.nombre}</h2>
+      <p>Número: ${data.numero}</p>
+      <p>Premio: ${data.premio}</p>
+      ${data.imagen_url ? `<img src="${data.imagen_url}" width="150">` : ""}
+    `;
+  } else if (data.tipo === "estado_sorteo") {
+    document.getElementById("estadoSorteo").innerText = `?? Etapa: ${data.fase}`;
+    audio.fase.play();
+  } else if (data.tipo === "bolilla") {
+    audio.bolilla.play();
+  }
+};
+
+document.addEventListener("DOMContentLoaded", cargarEstado);
+</script>
+</body>
+</html>
