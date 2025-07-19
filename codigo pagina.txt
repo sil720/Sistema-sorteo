@@ -1,0 +1,796 @@
+cat <<'EOF' > admin/index.html
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>??? Panel de Sorteo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style id="tema-admin">
+html {
+  scroll-behavior: smooth;
+}
+button, input, select {
+  touch-action: manipulation;
+}
+
+body {
+  font-family: sans-serif;
+  background: #f8f8f8;
+  color: #222;
+  max-width: 800px;
+  margin: auto;
+  padding: 20px;
+}
+
+h1, h2 { color: #1db954; }
+
+nav button {
+  margin: 5px;
+  padding: 10px 14px;
+  font-weight: bold;
+  border-radius: 5px;
+  border: none;
+  background: #1db954;
+  color: white;
+  cursor: pointer;
+}
+
+section {
+  display: none;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+section.active { display: block; }
+
+input, select {
+  display: block;
+  margin: 8px 0;
+  padding: 8px;
+  width: 100%;
+  font-size: 1em;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  gap: 6px;
+  margin-top: 15px;
+}
+
+.numero {
+  background: #e0ffe0;
+  border: 1px solid #ccc;
+  padding: 5px;
+  text-align: center;
+  border-radius: 4px;
+}
+
+.premio img {
+  max-width: 100px;
+  display: block;
+  margin: 5px auto;
+}
+
+@media (max-width: 600px) {
+  .grilla {
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  }
+  nav button, .compartir a, select, input, button {
+    font-size: 1em;
+    padding: 10px;
+  }
+}
+</style>
+
+<body onload="mostrarSeccion('configuracion')">
+  <h1>??? Panel de Sorteo</h1>
+
+  <nav>
+    <button onclick="mostrarSeccion('configuracion')">1?? Crear sorteo</button>
+    <button onclick="mostrarSeccion('registro')">2?? Registrar participante</button>
+    <button onclick="mostrarSeccion('sorteo')">3?? Ejecutar sorteo</button>
+    <button onclick="mostrarSeccion('estado')">4?? Ver estado</button>
+    <button onclick="mostrarSeccion('ventas')">5?? Ventas / tickets</button>
+    <button onclick="mostrarSeccion('estilos')">?? Personalizar estilo</button>
+    <button onclick="mostrarSeccion('credenciales')">?? Cambiar usuario/clave</button>
+  </nav>
+
+  <section id="configuracion" class="active">
+    <h2>?? Crear nuevo sorteo</h2>
+    <form onsubmit="crearSorteo(event)">
+      <label>Cantidad de números a vender:</label>
+      <input type="number" id="totalNumeros" required>
+
+      <label>Precio por número (ARS):</label>
+      <input type="number" id="precio_unitario" required>
+
+      <label>¿Hay descuento por 2 números?</label>
+      <select id="tiene_descuento" onchange="toggleDescuento()">
+        <option value="no">No</option>
+        <option value="si">Sí</option>
+      </select>
+
+      <div id="campo_descuento" style="display: none;">
+        <label>Precio total por 2 números:</label>
+        <input type="number" id="precio_doble">
+      </div>
+
+      <label>Fecha y hora del sorteo:</label>
+      <input type="datetime-local" id="fechaHora" required>
+
+      <label>Cantidad de premios:</label>
+      <input type="number" id="cantPremios" min="1" onchange="generarPremios()" required>
+
+      <div id="premiosContainer"></div>
+
+      <button type="submit">? Crear sorteo</button>
+    </form>
+  </section>
+
+  <section id="registro">
+    <h2>?? Registrar Participante</h2>
+    <form onsubmit="registrarParticipante(event)">
+      <input placeholder="ID del sorteo" id="sorteo_id">
+      <input placeholder="Nombre" id="nombre">
+      <input placeholder="Apellido" id="apellido">
+      <input placeholder="Teléfono (549...)" id="telefono">
+      <input placeholder="DNI últimos 3 dígitos" id="dni">
+      <input placeholder="Número comprado" id="numero">
+      <button type="submit">?? Registrar</button>
+    </form>
+  </section>
+
+  <section id="sorteo">
+    <h2>?? Ejecutar Sorteo</h2>
+    <form onsubmit="realizarSorteo(event)">
+      <input placeholder="ID del sorteo" id="sorteo_id_sortear">
+      <button type="submit">?? Sortear</button>
+    </form>
+    <ul id="ganadores"></ul>
+  </section>
+
+  <section id="estado">
+    <h2>?? Estado del Sorteo</h2>
+    <label>ID del sorteo:</label>
+    <input id="estado_id" value="1" onchange="cargarEstado()">
+
+    <p><strong>Precio por número:</strong> $<span id="precioUnitario">—</span></p>
+    <p><strong>Precio por 2 números:</strong> $<span id="precioDoble">—</span></p>
+
+    <h3>??? Números disponibles</h3>
+    <div id="grillaNumeros" class="grilla"></div>
+
+    <h3>?? Premios</h3>
+    <div id="listaPremios"></div>
+
+    <h3>?? Números vendidos:</h3>
+    <ul id="numerosVendidos"></ul>
+  </section>
+
+  <section id="ventas">
+    <h2>?? Consultar ventas</h2>
+    <form onsubmit="verVentaPorNumero(event)">
+      <label>Número a buscar:</label>
+      <input type="number" id="ticketNumero">
+      <input type="number" id="ticketSorteoId" placeholder="ID del sorteo">
+      <button type="submit">?? Buscar</button>
+    </form>
+    <div id="resultadoTicket"></div>
+    <button onclick="listarVentas()">?? Ver lista completa</button>
+    <ul id="listaVentas"></ul>
+  </section>
+
+  <section id="estilos">
+    <h2>?? Personalizar colores</h2>
+    <label>Color principal (Admin):</label>
+    <input type="color" id="colorAdmin" value="#1db954">
+    <label>Fondo (Admin):</label>
+    <input type="color" id="fondoAdmin" value="#f8f8f8">
+    <label>Color visualización:</label>
+    <input type="color" id="colorVisual" value="#00ff00">
+    <label>Fondo visualización:</label>
+    <input type="color" id="fondoVisual" value="#000000">
+    <button onclick="aplicarTemas()">?? Aplicar estilos</button>
+  </section>
+
+  <section id="credenciales">
+    <h2>?? Actualizar Credenciales</h2>
+    <form onsubmit="cambiarCredenciales(event)">
+      <label>Usuario actual:</label>
+      <input id="usuario_actual" required>
+
+      <label>Contraseña actual:</label>
+      <input type="password" id="clave_actual" required>
+
+      <label>Nuevo usuario:</label>
+      <input id="usuario_nuevo" required>
+
+      <label>Nueva clave:</label>
+      <input type="password" id="clave_nueva" required>
+
+      <button type="submit">?? Actualizar</button>
+    </form>
+    <p id="resultadoCambio"></p>
+  </section>
+<script>
+function mostrarSeccion(id) {
+  document.querySelectorAll("section").forEach(sec => sec.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+function toggleDescuento() {
+  const mostrar = document.getElementById("tiene_descuento").value === "si";
+  document.getElementById("campo_descuento").style.display = mostrar ? "block" : "none";
+}
+
+function generarPremios() {
+  const cantidad = parseInt(document.getElementById("cantPremios").value);
+  const contenedor = document.getElementById("premiosContainer");
+  contenedor.innerHTML = "";
+  for (let i = 1; i <= cantidad; i++) {
+    contenedor.innerHTML += `
+      <label>Premio ${i}:</label>
+      <input placeholder="Nombre del premio" id="premio_${i}">
+      <input placeholder="URL de imagen (opcional)" id="imagen_${i}">
+    `;
+  }
+}
+
+async function crearSorteo(e) {
+  e.preventDefault();
+  const total_numeros = parseInt(document.getElementById("totalNumeros").value);
+  const precio_unitario = parseFloat(document.getElementById("precio_unitario").value);
+  const tiene_descuento = document.getElementById("tiene_descuento").value === "si";
+  const precio_doble = tiene_descuento ? parseFloat(document.getElementById("precio_doble").value) : null;
+  const fecha_hora = document.getElementById("fechaHora").value;
+  const cant = parseInt(document.getElementById("cantPremios").value);
+  const premios = [];
+
+  for (let i = 1; i <= cant; i++) {
+    const nombre = document.getElementById(`premio_${i}`).value;
+    const imagen_url = document.getElementById(`imagen_${i}`).value;
+    premios.push({ nombre, imagen_url });
+  }
+
+  const res = await fetch("/api/sorteos/crear", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ total_numeros, fecha_hora, premios, precio_unitario, precio_doble })
+  });
+
+  const data = await res.json();
+  alert(data.mensaje || "? Sorteo creado");
+}
+
+async function registrarParticipante(e) {
+  e.preventDefault();
+  const sorteo_id = document.getElementById("sorteo_id").value;
+  const nombre = document.getElementById("nombre").value;
+  const apellido = document.getElementById("apellido").value;
+  const telefono = document.getElementById("telefono").value;
+  const dni = document.getElementById("dni").value;
+  const numero = document.getElementById("numero").value;
+
+  const res = await fetch("/api/sorteos/registrar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sorteo_id, nombre, apellido, telefono, dni_ultimos: dni, numero_comprado: numero })
+  });
+
+  const data = await res.json();
+  alert(data.mensaje || "? Participante registrado");
+}
+
+async function realizarSorteo(e) {
+  e.preventDefault();
+  const id = document.getElementById("sorteo_id_sortear").value;
+
+  const res = await fetch(`/api/sorteos/sorteo/${id}`, { method: "POST" });
+  const data = await res.json();
+
+  const lista = document.getElementById("ganadores");
+  lista.innerHTML = "";
+  for (const g of data.ganadores || []) {
+    const li = document.createElement("li");
+    li.textContent = `?? ${g.nombre} (${g.numero}) ? ${g.premio}`;
+    lista.appendChild(li);
+  }
+}
+
+async function cargarEstado() {
+  const id = document.getElementById("estado_id").value;
+  const res = await fetch("/api/sorteos/estado/" + id);
+  const data = await res.json();
+
+  document.getElementById("grillaNumeros").innerHTML =
+    data.disponibles.map(n => `<div class="numero">${n}</div>`).join("");
+
+  document.getElementById("numerosVendidos").innerHTML =
+    (data.vendidos || []).map(n => `<li>${n}</li>`).join("");
+
+  document.getElementById("precioUnitario").innerText = data.precio_unitario ?? "—";
+  document.getElementById("precioDoble").innerText = data.precio_doble ?? "—";
+
+  const premios = data.premios.map(p =>
+    `<div class="premio"><strong>${p.nombre}</strong><br><img src="${p.imagen_url || ''}"></div>`
+  ).join("");
+
+  document.getElementById("listaPremios").innerHTML = premios;
+}
+
+async function verVentaPorNumero(e) {
+  e.preventDefault();
+  const numero = parseInt(document.getElementById("ticketNumero").value);
+  const sorteo_id = parseInt(document.getElementById("ticketSorteoId").value);
+
+  const res = await fetch(`/api/sorteos/pago/ticket/${numero}?sorteo_id=${sorteo_id}`);
+  const data = await res.json();
+
+  document.getElementById("resultadoTicket").innerHTML = data.error
+    ? `? ${data.error}`
+    : `?? Comprado por: ${data.nombre} ${data.apellido}<br>Tel: ${data.telefono}`;
+}
+
+async function listarVentas() {
+  const id = document.getElementById("estado_id").value;
+  const res = await fetch("/api/sorteos/estado/" + id);
+  const data = await res.json();
+
+  const lista = document.getElementById("listaVentas");
+  lista.innerHTML = "";
+
+  for (const n of data.vendidos || []) {
+    const li = document.createElement("li");
+    li.innerText = n;
+    lista.appendChild(li);
+  }
+}
+
+function aplicarTemas() {
+  const adminBg = document.getElementById("fondoAdmin").value;
+  const adminColor = document.getElementById("colorAdmin").value;
+  const visualBg = document.getElementById("fondoVisual").value;
+  const visualColor = document.getElementById("colorVisual").value;
+
+  document.getElementById("tema-admin").innerHTML = `
+    body {
+      background: ${adminBg}; color: #222;
+      max-width: 800px; margin: auto; padding: 20px;
+    }
+    h1, h2 { color: ${adminColor}; }
+    nav button {
+      background: ${adminColor}; color: white;
+    }
+  `;
+
+  localStorage.setItem("visual-bg", visualBg);
+  localStorage.setItem("visual-color", visualColor);
+}
+
+async function cambiarCredenciales(e) {
+  e.preventDefault();
+  const data = {
+    usuario_actual: document.getElementById("usuario_actual").value,
+    clave_actual: document.getElementById("clave_actual").value,
+    usuario_nuevo: document.getElementById("usuario_nuevo").value,
+    clave_nueva: document.getElementById("clave_nueva").value
+  };
+
+  const res = await fetch("/api/auth/cambiar-credenciales", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+
+  const result = await res.json();
+  document.getElementById("resultadoCambio").innerText =
+    result.mensaje || result.error || "? Error al actualizar";
+}
+</script>
+</body>
+</html>
+
+
+cat <<'EOF' > utils/verificacionFirma.js
+const crypto = require("crypto");
+
+/**
+ * Verifica una firma HMAC-SHA256 contra el cuerpo sin procesar de una petición.
+ * 
+ * @param {Buffer|string} rawBody - El cuerpo crudo recibido en el webhook
+ * @param {string} firmaRecibida - La firma recibida desde el encabezado (ej. X-Signature)
+ * @param {string} secreto - La clave compartida o token secreto para validar
+ * @returns {boolean} true si la firma es válida
+ */
+function verificarFirma(rawBody, firmaRecibida, secreto) {
+  if (!rawBody || !firmaRecibida || !secreto) return false;
+
+  const expectedHash = crypto
+    .createHmac("sha256", secreto)
+    .update(rawBody)
+    .digest("hex");
+
+  return expectedHash === firmaRecibida;
+}
+
+module.exports = verificarFirma;
+EOF
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>?? Sorteo en Vivo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    html {
+      scroll-behavior: smooth;
+    }
+    button, input, select {
+      touch-action: manipulation;
+    }
+
+    body {
+      background: black;
+      color: lime;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    nav button {
+      background: lime;
+      color: black;
+      padding: 10px 16px;
+      margin: 5px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    section { display: none; }
+    section.active { display: block; }
+
+    .grilla {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+      gap: 6px;
+      max-width: 700px;
+      margin: 20px auto;
+    }
+
+    .numero {
+      background: #222;
+      padding: 10px;
+      border: 1px solid lime;
+      border-radius: 5px;
+    }
+
+    .premio img {
+      max-width: 150px;
+      display: block;
+      margin: 5px auto;
+      border-radius: 4px;
+    }
+
+    .compartir a {
+      background: lime;
+      color: black;
+      padding: 10px 20px;
+      margin: 6px;
+      display: inline-block;
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .qr img { margin-top: 10px; }
+
+    #estadoCuentaRegresiva, #estadoSorteo {
+      background: #fff8dc;
+      color: #222;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-weight: bold;
+      border: 1px solid #e0c97d;
+      font-size: 1.1em;
+    }
+
+    #modalAlerta {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.2em;
+    }
+
+    #modalAlerta > div {
+      background: #111;
+      padding: 20px;
+      border: 2px solid lime;
+      border-radius: 10px;
+    }
+
+    select, button, input {
+      padding: 8px;
+      font-size: 1em;
+      margin: 6px;
+    }
+
+    .precio-info {
+      margin-top: 10px;
+      background: #111;
+      color: lime;
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 1.1em;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    @media (max-width: 600px) {
+      .grilla {
+        grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+      }
+
+      nav button, .compartir a, select, input, button {
+        font-size: 1em;
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1>?? Sorteo en Vivo</h1>
+
+  <nav>
+    <button onclick="mostrarSeccion('grilla')">1?? Ver sorteo</button>
+    <button onclick="mostrarSeccion('comprar')">2?? Comprar número</button>
+    <button onclick="mostrarSeccion('envivo')">3?? Ver sorteo en vivo</button>
+  </nav>
+
+  <section id="grilla" class="active">
+    <div id="estadoSorteo">? Cargando estado...</div>
+
+    <div class="precio-info">
+      <p><strong>?? Precio por número:</strong> $<span id="precioUnitario">—</span></p>
+      <p><strong>?? Precio por 2 números:</strong> $<span id="precioDoble">—</span></p>
+    </div>
+
+    <h2>??? Números Disponibles</h2>
+    <div id="numerosDisponibles" class="grilla"></div>
+
+    <h2>?? Premios a sortear</h2>
+    <div id="premiosGrilla"></div>
+
+    <div class="compartir">
+      <a id="btnWhatsapp" target="_blank">?? Compartir WhatsApp</a>
+      <a id="btnTelegram" target="_blank">?? Compartir Telegram</a>
+      <a id="btnFacebook" target="_blank">?? Compartir Facebook</a>
+    </div>
+
+    <div class="qr">
+      <h3>?? Escaneá para acceder:</h3>
+      <img id="qrCode" src="" width="180">
+    </div>
+  </section>
+
+  <section id="comprar">
+    <div id="pasoSeleccionCompra">
+      <h2>??? ¿Qué querés comprar?</h2>
+      <p>?? Si comprás 2 números accedés a un descuento especial.</p>
+      <button onclick="iniciarCompra(1)">Comprar 1 número</button>
+      <button onclick="iniciarCompra(2)">Comprar 2 números con descuento</button>
+    </div>
+
+    <div id="pasoUnoNumero" style="display: none;">
+      <h3>?? Elegí tu número</h3>
+      <select id="numero1Seleccion"></select><br>
+      <button onclick="continuarASegundoNumero()">Siguiente</button>
+    </div>
+
+    <div id="pasoDosNumero" style="display: none;">
+      <h3>?? Elegí el segundo número</h3>
+      <select id="numero2Seleccion"></select><br>
+      <button onclick="finalizarCompra()">Finalizar compra</button>
+    </div>
+
+    <div id="mensajeCompra" class="precio-info" style="display: none;"></div>
+  </section>
+
+  <section id="envivo">
+    <div id="estadoCuentaRegresiva"></div>
+    <div id="premiosEnvivo"></div>
+    <div id="resultado"></div>
+
+    <div id="youtubeLive" style="display:none; margin-top:20px;">
+      <h3>?? Transmisión en vivo</h3>
+      <iframe width="560" height="315"
+        src="https://www.youtube.com/embed/ABC123XYZ?autoplay=1"
+        title="Sorteo en vivo"
+        frameborder="0"
+        allow="autoplay; encrypted-media;"
+        allowfullscreen></iframe>
+      <br>
+      <a href="https://www.youtube.com/watch?v=ABC123XYZ" target="_blank" style="color: lime;">?? Ver en YouTube</a>
+    </div>
+  </section>
+<script>
+const sorteo_id = 1;
+const urlActual = window.location.href;
+let precioUnitario = 0;
+let precioDoble = null;
+let disponibles = [];
+
+function mostrarSeccion(id) {
+  document.querySelectorAll("section").forEach(sec => sec.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+async function cargarEstado() {
+  const res = await fetch("/api/sorteos/estado/" + sorteo_id);
+  const data = await res.json();
+  disponibles = data.disponibles;
+  precioUnitario = parseFloat(data.precio_unitario || 0);
+  precioDoble = data.precio_doble !== null ? parseFloat(data.precio_doble) : null;
+
+  document.getElementById("precioUnitario").innerText = precioUnitario.toFixed(2);
+  document.getElementById("precioDoble").innerText = precioDoble !== null ? precioDoble.toFixed(2) : "—";
+
+  document.getElementById("numerosDisponibles").innerHTML =
+    disponibles.map(n => `<div class="numero">${n}</div>`).join("");
+
+  document.getElementById("numero1Seleccion").innerHTML =
+    disponibles.map(n => `<option value="${n}">${n}</option>`).join("");
+
+  document.getElementById("numero2Seleccion").innerHTML =
+    disponibles.map(n => `<option value="${n}">${n}</option>`).join("");
+
+  const premiosHTML = data.premios.map(p =>
+    `<div class="premio"><strong>${p.nombre}</strong><br><img src="${p.imagen_url || ''}"></div>`
+  ).join("");
+
+  document.getElementById("premiosGrilla").innerHTML = premiosHTML;
+  document.getElementById("premiosEnvivo").innerHTML = premiosHTML;
+
+  const ahora = new Date();
+  const fechaSorteo = new Date(data.fecha_hora);
+
+  if (ahora < fechaSorteo) {
+    iniciarCuentaRegresiva(fechaSorteo);
+  } else {
+    document.getElementById("estadoCuentaRegresiva").innerHTML =
+      `?? Sorteo en vivo — <strong>${fechaSorteo.toLocaleString()}</strong>`;
+    document.getElementById("youtubeLive").style.display = "block";
+  }
+
+  const texto = encodeURIComponent("?? Participá del sorteo en vivo:\n" + urlActual);
+  document.getElementById("btnWhatsapp").href = "https://wa.me/?text=" + texto;
+  document.getElementById("btnTelegram").href = "https://t.me/share/url?url=" + encodeURIComponent(urlActual) + "&text=" + texto;
+  document.getElementById("btnFacebook").href = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(urlActual);
+  document.getElementById("qrCode").src = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" + encodeURIComponent(urlActual);
+}
+
+function iniciarCuentaRegresiva(fechaObjetivo) {
+  function actualizar() {
+    const ahora = new Date();
+    const diff = fechaObjetivo - ahora;
+    if (diff <= 0) {
+      document.getElementById("estadoCuentaRegresiva").innerHTML =
+        `?? Sorteo en vivo — <strong>${fechaObjetivo.toLocaleString()}</strong>`;
+      document.getElementById("youtubeLive").style.display = "block";
+      clearInterval(intervalo);
+      return;
+    }
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById("estadoCuentaRegresiva").innerHTML =
+      `? Sorteo en <strong>${h}h ${m}m ${s}s</strong> — ${fechaObjetivo.toLocaleString()}`;
+  }
+  actualizar();
+  const intervalo = setInterval(actualizar, 1000);
+}
+
+let tipoCompra = 1;
+
+function iniciarCompra(tipo) {
+  tipoCompra = tipo;
+  document.getElementById("pasoSeleccionCompra").style.display = "none";
+  document.getElementById("mensajeCompra").style.display = "block";
+  if (tipo === 1) {
+    const msg = `?? Precio por número: $${precioUnitario.toFixed(2)}`;
+    document.getElementById("mensajeCompra").innerText = msg;
+    document.getElementById("pasoUnoNumero").style.display = "block";
+  } else {
+    const ahorro = precioUnitario * 2 - precioDoble;
+    const msg = `?? Comprás 2 números por $${precioDoble.toFixed(2)} (ahorrás $${ahorro.toFixed(2)})`;
+    document.getElementById("mensajeCompra").innerText = msg;
+    document.getElementById("pasoUnoNumero").style.display = "block";
+  }
+}
+
+function continuarASegundoNumero() {
+  const seleccionado = parseInt(document.getElementById("numero1Seleccion").value);
+  const segundaLista = disponibles.filter(n => n !== seleccionado);
+  document.getElementById("numero2Seleccion").innerHTML =
+    segundaLista.map(n => `<option value="${n}">${n}</option>`).join("");
+  if (tipoCompra === 2) {
+    document.getElementById("pasoUnoNumero").style.display = "none";
+    document.getElementById("pasoDosNumero").style.display = "block";
+  } else {
+    finalizarCompra();
+  }
+}
+
+async function finalizarCompra() {
+  const numero1 = parseInt(document.getElementById("numero1Seleccion").value);
+  const numero2 = tipoCompra === 2 ? parseInt(document.getElementById("numero2Seleccion").value) : null;
+  const numeros = tipoCompra === 2 ? [numero1, numero2] : [numero1];
+
+  for (const numero of numeros) {
+    const res = await fetch(`/api/pago/${numero}?sorteo_id=${sorteo_id}`);
+    const link = await res.json();
+    if (link.init_point) {
+      window.open(link.init_point, "_blank");
+    }
+  }
+
+  mostrarSeccion("grilla");
+  document.getElementById("pasoSeleccionCompra").style.display = "block";
+  document.getElementById("mensajeCompra").style.display = "none";
+  document.getElementById("pasoUnoNumero").style.display = "none";
+  document.getElementById("pasoDosNumero").style.display = "none";
+}
+
+function mostrarModal(mensaje) {
+  document.getElementById("mensajeModal").innerText = mensaje;
+  document.getElementById("modalAlerta").style.display = "flex";
+}
+
+function cerrarModal() {
+  document.getElementById("modalAlerta").style.display = "none";
+}
+
+const source = new EventSource("/api/sorteos/stream");
+source.onmessage = e => {
+  const data = JSON.parse(e.data);
+  if (data.event === "venta") cargarEstado();
+  if (data.event === "ganador") {
+    mostrarSeccion("envivo");
+    document.getElementById("estadoCuentaRegresiva").innerText = "?? ¡Sorteo en vivo!";
+    document.getElementById("resultado").innerHTML = `
+      <h2>Ganador: ${data.nombre}</h2>
+      <p>Número: ${data.numero}</p>
+      <p>Premio: ${data.premio}</p>
+      ${data.imagen_url ? `<img src="${data.imagen_url}" width="150">` : ""}
+    `;
+  }
+};
+
+document.addEventListener("DOMContentLoaded", cargarEstado);
+</script>
+
+<!-- Modal de alerta -->
+<div id="modalAlerta">
+  <div>
+    <p id="mensajeModal">??</p>
+    <button onclick="cerrarModal()">Cerrar</button>
+  </div>
+</div>
+</body>
+</html>
