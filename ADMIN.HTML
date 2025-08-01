@@ -1,0 +1,455 @@
+cat <<'EOF' > admin/index.html
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>??? Panel de Sorteo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style id="tema-admin">
+html {
+  scroll-behavior: smooth;
+}
+button, input, select {
+  touch-action: manipulation;
+}
+
+body {
+  font-family: sans-serif;
+  background: #f8f8f8;
+  color: #222;
+  max-width: 800px;
+  margin: auto;
+  padding: 20px;
+}
+
+h1, h2 { color: #1db954; }
+
+nav button {
+  margin: 5px;
+  padding: 10px 14px;
+  font-weight: bold;
+  border-radius: 5px;
+  border: none;
+  background: #1db954;
+  color: white;
+  cursor: pointer;
+}
+
+section {
+  display: none;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+section.active { display: block; }
+
+input, select {
+  display: block;
+  margin: 8px 0;
+  padding: 8px;
+  width: 100%;
+  font-size: 1em;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  gap: 6px;
+  margin-top: 15px;
+}
+
+.numero {
+  background: #e0ffe0;
+  border: 1px solid #ccc;
+  padding: 5px;
+  text-align: center;
+  border-radius: 4px;
+}
+
+.premio img {
+  max-width: 100px;
+  display: block;
+  margin: 5px auto;
+}
+
+@media (max-width: 600px) {
+  .grilla {
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  }
+  nav button, .compartir a, select, input, button {
+    font-size: 1em;
+    padding: 10px;
+  }
+}
+</style>
+
+<body onload="mostrarSeccion('configuracion')">
+  <h1>??? Panel de Sorteo</h1>
+
+  <nav>
+    <button onclick="mostrarSeccion('configuracion')">1?? Crear sorteo</button>
+    <button onclick="mostrarSeccion('registro')">2?? Registrar participante</button>
+    <button onclick="mostrarSeccion('sorteo')">3?? Ejecutar sorteo</button>
+    <button onclick="mostrarSeccion('estado')">4?? Ver estado</button>
+    <button onclick="mostrarSeccion('ventas')">5?? Ventas / tickets</button>
+    <button onclick="mostrarSeccion('estilos')">?? Personalizar estilo</button>
+    <button onclick="mostrarSeccion('credenciales')">?? Cambiar usuario/clave</button>
+  </nav>
+
+  <section id="configuracion" class="active">
+    <h2>?? Crear nuevo sorteo</h2>
+    <form onsubmit="crearSorteo(event)">
+      <label>Cantidad de números a vender:</label>
+      <input type="number" id="totalNumeros" required>
+
+      <label>Precio por número (ARS):</label>
+      <input type="number" id="precio_unitario" required>
+
+      <label>¿Hay descuento por 2 números?</label>
+      <select id="tiene_descuento" onchange="toggleDescuento()">
+        <option value="no">No</option>
+        <option value="si">Sí</option>
+      </select>
+
+      <div id="campo_descuento" style="display: none;">
+        <label>Precio total por 2 números:</label>
+        <input type="number" id="precio_doble">
+      </div>
+
+      <label>Fecha y hora del sorteo:</label>
+      <input type="datetime-local" id="fechaHora" required>
+
+      <label>Cantidad de premios:</label>
+      <input type="number" id="cantPremios" min="1" onchange="generarPremios()" required>
+
+      <div id="premiosContainer"></div>
+
+      <button type="submit">? Crear sorteo</button>
+    </form>
+  </section>
+
+  <section id="registro">
+    <h2>?? Registrar Participante</h2>
+
+<form onsubmit="registrarParticipante(event)">
+  <input placeholder="ID del sorteo" id="sorteo_id">
+  <input placeholder="Nombre" id="nombre">
+  <input placeholder="Apellido" id="apellido">
+  <input placeholder="Teléfono (549...)" id="telefono">
+  <input placeholder="DNI últimos dígitos" id="dni">
+
+  <label>¿Cuántos números compra el cliente?</label>
+  <select id="cantidad_numeros" onchange="toggleNumeroExtra()">
+    <option value="1">1 número</option>
+    <option value="2">2 números</option>
+  </select>
+
+  <input placeholder="Número comprado" id="numero1">
+  <div id="numeroExtra" style="display: none;">
+    <input placeholder="Segundo número comprado" id="numero2">
+  </div>
+
+  <button type="submit">? Registrar</button>
+</form>
+
+  </section>
+
+  <section id="sorteo">
+    <h2>?? Ejecutar Sorteo</h2>
+    <form onsubmit="realizarSorteo(event)">
+      <input placeholder="ID del sorteo" id="sorteo_id_sortear">
+      <button type="submit">?? Sortear</button>
+    </form>
+    <ul id="ganadores"></ul>
+  </section>
+
+  <section id="estado">
+    <h2>?? Estado del Sorteo</h2>
+    <label>ID del sorteo:</label>
+    <input id="estado_id" value="1" onchange="cargarEstado()">
+
+    <p><strong>Precio por número:</strong> $<span id="precioUnitario">—</span></p>
+    <p><strong>Precio por 2 números:</strong> $<span id="precioDoble">—</span></p>
+
+    <h3>??? Números disponibles</h3>
+    <div id="grillaNumeros" class="grilla"></div>
+
+    <h3>?? Premios</h3>
+    <div id="listaPremios"></div>
+
+    <h3>?? Números vendidos:</h3>
+    <ul id="numerosVendidos"></ul>
+  </section>
+
+  <section id="ventas">
+    <h2>?? Consultar ventas</h2>
+    <form onsubmit="verVentaPorNumero(event)">
+      <label>Número a buscar:</label>
+      <input type="number" id="ticketNumero">
+      <input type="number" id="ticketSorteoId" placeholder="ID del sorteo">
+      <button type="submit">?? Buscar</button>
+    </form>
+    <div id="resultadoTicket"></div>
+    <button onclick="listarVentas()">?? Ver lista completa</button>
+    <ul id="listaVentas"></ul>
+  </section>
+
+  <section id="estilos">
+    <h2>?? Personalizar colores</h2>
+    <label>Color principal (Admin):</label>
+    <input type="color" id="colorAdmin" value="#1db954">
+    <label>Fondo (Admin):</label>
+    <input type="color" id="fondoAdmin" value="#f8f8f8">
+    <label>Color visualización:</label>
+    <input type="color" id="colorVisual" value="#00ff00">
+    <label>Fondo visualización:</label>
+    <input type="color" id="fondoVisual" value="#000000">
+    <button onclick="aplicarTemas()">?? Aplicar estilos</button>
+  </section>
+
+  <section id="credenciales">
+    <h2>?? Actualizar Credenciales</h2>
+    <form onsubmit="cambiarCredenciales(event)">
+      <label>Usuario actual:</label>
+      <input id="usuario_actual" required>
+
+      <label>Contraseña actual:</label>
+      <input type="password" id="clave_actual" required>
+
+      <label>Nuevo usuario:</label>
+      <input id="usuario_nuevo" required>
+
+      <label>Nueva clave:</label>
+      <input type="password" id="clave_nueva" required>
+
+      <button type="submit">?? Actualizar</button>
+    </form>
+    <p id="resultadoCambio"></p>
+  </section>
+<script>
+function mostrarSeccion(id) {
+  document.querySelectorAll("section").forEach(sec => sec.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+function toggleDescuento() {
+  const mostrar = document.getElementById("tiene_descuento").value === "si";
+  document.getElementById("campo_descuento").style.display = mostrar ? "block" : "none";
+function toggleNumeroExtra() {
+  const mostrar = document.getElementById("cantidad_numeros").value === "2";
+  document.getElementById("numeroExtra").style.display = mostrar ? "block" : "none";
+}
+}
+
+function generarPremios() {
+  const cantidad = parseInt(document.getElementById("cantPremios").value);
+  const contenedor = document.getElementById("premiosContainer");
+  contenedor.innerHTML = "";
+  for (let i = 1; i <= cantidad; i++) {
+    contenedor.innerHTML += `
+      <label>Premio ${i}:</label>
+      <input placeholder="Nombre del premio" id="premio_${i}">
+      <input placeholder="URL de imagen (opcional)" id="imagen_${i}">
+    `;
+  }
+}
+
+async function crearSorteo(e) {
+  e.preventDefault();
+  const total_numeros = parseInt(document.getElementById("totalNumeros").value);
+  const precio_unitario = parseFloat(document.getElementById("precio_unitario").value);
+  const tiene_descuento = document.getElementById("tiene_descuento").value === "si";
+  const precio_doble = tiene_descuento ? parseFloat(document.getElementById("precio_doble").value) : null;
+  const fecha_hora = document.getElementById("fechaHora").value;
+  const cant = parseInt(document.getElementById("cantPremios").value);
+  const premios = [];
+
+  for (let i = 1; i <= cant; i++) {
+    const nombre = document.getElementById(`premio_${i}`).value;
+    const imagen_url = document.getElementById(`imagen_${i}`).value;
+    premios.push({ nombre, imagen_url });
+  }
+
+  const res = await fetch("/api/sorteos/crear", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ total_numeros, fecha_hora, premios, precio_unitario, precio_doble })
+  });
+
+  const data = await res.json();
+  alert(data.mensaje || "? Sorteo creado");
+}
+
+async function registrarParticipante(e) {
+  e.preventDefault();
+
+  const sorteo_id = document.getElementById("sorteo_id").value;
+  const nombre = document.getElementById("nombre").value;
+  const apellido = document.getElementById("apellido").value;
+  const telefono = document.getElementById("telefono").value;
+  const dni = document.getElementById("dni").value;
+  const cantidad = parseInt(document.getElementById("cantidad_numeros").value);
+
+  const numeros = [parseInt(document.getElementById("numero1").value)];
+  if (cantidad === 2) {
+    numeros.push(parseInt(document.getElementById("numero2").value));
+  }
+
+  let errores = [];
+
+  for (const numero of numeros) {
+    const res = await fetch("/api/sorteos/registrar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sorteo_id, nombre, apellido, telefono, dni_ultimos: dni, numero_comprado: numero })
+    });
+
+    const data = await res.json();
+    if (data.error) {
+      errores.push(`Número ${numero}: ${data.error}`);
+    }
+  }
+
+  if (errores.length) {
+    alert("? Errores al registrar:\n" + errores.join("\n"));
+  } else {
+    alert(`? Participante registrado con ${numeros.length} número(s)`);
+
+    // Opcional: actualizar frontend visual si estás mostrando la grilla
+    if (typeof cargarEstado === "function") {
+      cargarEstado();
+    }
+  }
+}
+
+
+async function realizarSorteo(e) {
+  e.preventDefault();
+  const id = document.getElementById("sorteo_id_sortear").value;
+
+  const res = await fetch(`/api/sorteos/sorteo/${id}`, { method: "POST" });
+  const data = await res.json();
+
+  const lista = document.getElementById("ganadores");
+  lista.innerHTML = "";
+  for (const g of data.ganadores || []) {
+    const li = document.createElement("li");
+    li.textContent = `?? ${g.nombre} (${g.numero}) ? ${g.premio}`;
+    lista.appendChild(li);
+  }
+}
+
+async function cargarEstado() {
+  const id = document.getElementById("estado_id").value;
+  const res = await fetch("/api/sorteos/estado/" + id);
+  const data = await res.json();
+
+  document.getElementById("grillaNumeros").innerHTML =
+    data.disponibles.map(n => `<div class="numero">${n}</div>`).join("");
+
+  document.getElementById("numerosVendidos").innerHTML =
+    (data.vendidos || []).map(n => `<li>${n}</li>`).join("");
+
+  document.getElementById("precioUnitario").innerText = data.precio_unitario ?? "—";
+  document.getElementById("precioDoble").innerText = data.precio_doble ?? "—";
+
+  const premios = data.premios.map(p =>
+    `<div class="premio"><strong>${p.nombre}</strong><br><img src="${p.imagen_url || ''}"></div>`
+  ).join("");
+
+  document.getElementById("listaPremios").innerHTML = premios;
+}
+
+async function verVentaPorNumero(e) {
+  e.preventDefault();
+  const numero = parseInt(document.getElementById("ticketNumero").value);
+  const sorteo_id = parseInt(document.getElementById("ticketSorteoId").value);
+
+  const res = await fetch(`/api/sorteos/pago/ticket/${numero}?sorteo_id=${sorteo_id}`);
+  const data = await res.json();
+
+  document.getElementById("resultadoTicket").innerHTML = data.error
+    ? `? ${data.error}`
+    : `?? Comprado por: ${data.nombre} ${data.apellido}<br>Tel: ${data.telefono}`;
+}
+
+async function listarVentas() {
+  const id = document.getElementById("estado_id").value;
+  const res = await fetch("/api/sorteos/estado/" + id);
+  const data = await res.json();
+
+  const lista = document.getElementById("listaVentas");
+  lista.innerHTML = "";
+
+  for (const n of data.vendidos || []) {
+    const li = document.createElement("li");
+    li.innerText = n;
+    lista.appendChild(li);
+  }
+}
+
+function aplicarTemas() {
+  const adminBg = document.getElementById("fondoAdmin").value;
+  const adminColor = document.getElementById("colorAdmin").value;
+  const visualBg = document.getElementById("fondoVisual").value;
+  const visualColor = document.getElementById("colorVisual").value;
+
+  document.getElementById("tema-admin").innerHTML = `
+    body {
+      background: ${adminBg}; color: #222;
+      max-width: 800px; margin: auto; padding: 20px;
+    }
+    h1, h2 { color: ${adminColor}; }
+    nav button {
+      background: ${adminColor}; color: white;
+    }
+  `;
+
+  localStorage.setItem("visual-bg", visualBg);
+  localStorage.setItem("visual-color", visualColor);
+}
+
+async function cambiarCredenciales(e) {
+  e.preventDefault();
+  const data = {
+    usuario_actual: document.getElementById("usuario_actual").value,
+    clave_actual: document.getElementById("clave_actual").value,
+    usuario_nuevo: document.getElementById("usuario_nuevo").value,
+    clave_nueva: document.getElementById("clave_nueva").value
+  };
+
+  const res = await fetch("/api/auth/cambiar-credenciales", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+
+  const result = await res.json();
+  document.getElementById("resultadoCambio").innerText =
+    result.mensaje || result.error || "? Error al actualizar";
+}
+</script>
+</body>
+</html>
+EOF
+async function registrarParticipante(e) {
+  e.preventDefault();
+  const sorteo_id = document.getElementById("sorteo_id").value;
+  const nombre = document.getElementById("nombre").value;
+  const apellido = document.getElementById("apellido").value;
+  const telefono = document.getElementById("telefono").value;
+  const dni = document.getElementById("dni").value;
+  const numero = document.getElementById("numero").value;
+
+  const res = await fetch("/api/sorteos/registrar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sorteo_id, nombre, apellido, telefono, dni_ultimos: dni, numero_comprado: numero })
+  });
+
+  const data = await res.json();
+  alert(data.mensaje || "? Participante registrado");
